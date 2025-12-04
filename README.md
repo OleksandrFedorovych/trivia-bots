@@ -29,12 +29,16 @@ src/
 ├── orchestrator/
 │   ├── playerPool.js   # Manages multiple browser instances
 │   └── gameSession.js  # Coordinates game sessions
+├── scheduler/
+│   └── gameScheduler.js # Automatic game scheduling
 ├── utils/
 │   ├── logger.js       # Winston logger
 │   └── timing.js       # Timing utilities
 ├── data/
 │   └── samplePlayers.json  # Sample player data
 ├── bot.js              # Single bot runner
+├── runMultipleBots.js  # Multi-bot runner
+├── runScheduler.js     # Scheduler runner
 └── index.js            # Main entry point
 ```
 
@@ -107,14 +111,38 @@ Players can have the following attributes:
 Run with generated test players:
 
 ```bash
-npm run bot               # Single bot test
-node src/index.js test https://www.crowd.live/FNJCN 5  # 5 test players
+npm run bot                 # Single bot test
+npm run bots:5              # 5 bots test
+npm run bots:10             # 10 bots test  
+npm run bots:25             # 25 bots test
+node src/index.js test https://www.crowd.live/FNJCN 5  # Custom URL, 5 players
 ```
 
 ### Run with Google Sheets Players
 
 ```bash
 node src/index.js run https://www.crowd.live/FNJCN 20  # 20 players from sheets
+```
+
+### Game Scheduler (Automatic Weekly Games)
+
+The scheduler automatically runs games at scheduled times:
+- **NFL Trivia**: Thursday, Sunday, Monday at 9:35pm EST
+- **Hockey Trivia**: Saturday at 7:40pm EST
+
+```bash
+npm run scheduler           # Start scheduler daemon (runs continuously)
+npm run scheduler:status    # Check next scheduled game times
+npm run scheduler:nfl       # Run NFL game immediately
+npm run scheduler:hockey    # Run Hockey game immediately
+```
+
+To keep the scheduler running continuously, use a process manager like PM2:
+```bash
+npm install -g pm2
+pm2 start src/runScheduler.js --name "trivia-scheduler"
+pm2 logs trivia-scheduler   # View logs
+pm2 stop trivia-scheduler   # Stop scheduler
 ```
 
 ### View Loaded Players

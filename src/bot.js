@@ -22,7 +22,7 @@ async function main() {
     nickname: 'TestBot001',
     name: 'Test Bot',
     email: 'testbot@example.com',
-    phone: '+15551234567',
+    phone: '+491701234567',  // German format: 10 digits
     accuracy: 0.75,
     personality: 'normal',
     reactionTime: {

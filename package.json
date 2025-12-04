@@ -7,6 +7,14 @@
   "scripts": {
     "start": "node src/index.js",
     "bot": "node src/bot.js",
+    "bots": "node src/runMultipleBots.js",
+    "bots:5": "node src/runMultipleBots.js 5",
+    "bots:10": "node src/runMultipleBots.js 10",
+    "bots:25": "node src/runMultipleBots.js 25",
+    "scheduler": "node src/runScheduler.js",
+    "scheduler:status": "node src/runScheduler.js status",
+    "scheduler:nfl": "node src/runScheduler.js run nfl",
+    "scheduler:hockey": "node src/runScheduler.js run hockey",
     "test": "node src/test.js",
     "dev": "node --watch src/index.js"
   },

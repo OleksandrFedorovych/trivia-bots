@@ -31,6 +31,7 @@ export class TriviaBot {
     this.pageActions = null;
     this.stateManager = null;
     this.isRunning = false;
+    this.questionNumber = 0;
     this.gameResults = {
       questionsAnswered: 0,
       correctAnswers: 0,
@@ -117,14 +118,32 @@ export class TriviaBot {
     this.logger.info('Waiting for game to start');
 
     try {
+      // Wait for any game state (question, countdown, answer reveal, or game ended)
       const state = await this.stateManager.waitForState(
-        [GameStates.COUNTDOWN, GameStates.QUESTION],
+        [GameStates.COUNTDOWN, GameStates.QUESTION, GameStates.ANSWER_REVEAL, GameStates.BETWEEN_QUESTIONS, GameStates.GAME_ENDED],
         timeout
       );
 
+      // Check if we got game ended state
+      if (state === GameStates.GAME_ENDED) {
+        this.logger.info('Game has ended');
+        return false;
+      }
+
       if (state === GameStates.COUNTDOWN) {
         this.logger.info('Countdown started');
-        await this.stateManager.waitForState(GameStates.QUESTION, 180000);
+        try {
+          await this.stateManager.waitForState([GameStates.QUESTION, GameStates.GAME_ENDED], 180000);
+        } catch (e) {
+          this.logger.warn('Countdown finished but no question detected');
+        }
+      }
+
+      // Re-check state after countdown
+      const currentState = await this.stateManager.detectState();
+      if (currentState === GameStates.GAME_ENDED) {
+        this.logger.info('Game has ended');
+        return false;
       }
 
       this.logger.info('Game started!');
@@ -139,102 +158,229 @@ export class TriviaBot {
    * Handle a single question
    */
   async handleQuestion() {
-    const questionText = await this.pageActions.getQuestionText();
-    this.logger.info(`Question: ${questionText.substring(0, 50)}...`);
+    this.questionNumber++;
 
-    // Get answer options
-    const options = await this.pageActions.getAnswerOptions();
+    // 15. Question X started: full question shows here
+    const questionText = await this.pageActions.getQuestionText();
+    this.logger.info(`========================================`);
+    this.logger.info(`QUESTION ${this.questionNumber} STARTED`);
+    this.logger.info(`Question: ${questionText}`);
+
+    // 16. Possible answers shown here
+    const { type: questionType, options } = await this.pageActions.getAnswerOptions();
+
+    this.logger.info(`Answer Type: ${questionType}`);
+    if (questionType === 'multiple_choice') {
+      this.logger.info(`Possible Answers:`);
+      options.forEach((opt, i) => {
+        const letter = String.fromCharCode(65 + i); // A, B, C, D
+        // Clean up the text - remove extra newlines and whitespace
+        const cleanText = (opt.text || 'N/A').replace(/\s+/g, ' ').trim().substring(0, 50);
+        this.logger.info(`  ${letter}. ${cleanText}`);
+      });
+    } else if (questionType === 'number_input') {
+      this.logger.info(`Possible Answers: NUMBER INPUT REQUIRED`);
+    } else if (questionType === 'text_input') {
+      this.logger.info(`Possible Answers: TEXT INPUT REQUIRED`);
+    } else if (questionType === 'true_false') {
+      this.logger.info(`Possible Answers: TRUE / FALSE`);
+    } else {
+      this.logger.info(`Possible Answers: ${options.length} options (${questionType})`);
+    }
+
     if (options.length === 0) {
-      this.logger.warn('No answer options found');
+      this.logger.warn('No answer options found - skipping');
+      await sleep(2000);
+      await this.waitAndLogRanking();
       return;
     }
 
-    // Use behavior engine to select answer
+    // Select answer
     const decision = behaviorEngine.selectAnswer(
       this.profile,
       options,
-      null, // We don't know the correct answer
+      null,
       { difficulty: 0.5 }
     );
+    const selectedIndex = Math.min(decision.index, options.length - 1);
 
-    this.logger.debug(`Decision: answer ${decision.index + 1}, delay ${decision.delay}ms`);
+    // Brief delay before answering
+    await sleep(Math.min(decision.delay, 1000));
 
-    // Wait before answering (human-like delay)
-    await sleep(decision.delay);
-
-    // Check if we still can answer (not timed out)
-    const currentState = await this.stateManager.detectState();
-    if (currentState !== GameStates.QUESTION) {
-      this.logger.warn('Question timed out before answering');
-      return;
+    // 17. Answered blablabla
+    let answerText = '';
+    if (questionType === 'multiple_choice') {
+      const cleanText = (options[selectedIndex]?.text || '').replace(/\s+/g, ' ').trim().substring(0, 50);
+      answerText = `${String.fromCharCode(65 + selectedIndex)}. ${cleanText}`;
+    } else if (questionType === 'number_input') {
+      answerText = 'Random number (1-100)';
+    } else if (questionType === 'true_false') {
+      answerText = selectedIndex === 0 ? 'True' : 'False';
+    } else {
+      answerText = `Option ${selectedIndex + 1}`;
     }
 
-    // Click the answer
-    await this.pageActions.clickAnswer(decision.index);
-    this.gameResults.questionsAnswered++;
+    const clicked = await this.pageActions.clickAnswer(selectedIndex, questionType);
 
-    // Wait for result
-    await randomSleep(500, 1000);
-    const wasCorrect = await this.pageActions.checkAnswerResult();
+    if (clicked) {
+      this.gameResults.questionsAnswered++;
+      this.logger.info(`ANSWERED: ${answerText}`);
 
-    if (wasCorrect !== null) {
-      behaviorEngine.recordAnswer(this.profile, wasCorrect);
-      if (wasCorrect) {
+      // 18. Result: right or wrong
+      await sleep(1500);
+      const wasCorrect = await this.pageActions.checkAnswerResult();
+
+      if (wasCorrect === true) {
         this.gameResults.correctAnswers++;
-        this.logger.info('Answer: CORRECT!');
+        behaviorEngine.recordAnswer(this.profile, true);
+        this.logger.info(`RESULT: ✓ CORRECT`);
+      } else if (wasCorrect === false) {
+        behaviorEngine.recordAnswer(this.profile, false);
+        this.logger.info(`RESULT: ✗ WRONG`);
       } else {
-        this.logger.info('Answer: Wrong');
+        this.logger.info(`RESULT: ? (could not determine)`);
       }
+
+      // 19. Show the ranking
+      await this.waitAndLogRanking();
+
+    } else {
+      this.logger.error(`ANSWERED: FAILED TO SUBMIT`);
+      this.logger.info(`RESULT: ✗ NO ANSWER SUBMITTED`);
+      await sleep(2000);
+      await this.waitAndLogRanking();
     }
+
+    this.logger.info(`========================================`);
   }
 
   /**
-   * Main game loop
+   * Wait for ranking screen and log the current ranking
+   */
+  async waitAndLogRanking() {
+    // Wait for the ranking screen to appear
+    await sleep(3000);
+
+    try {
+      const pageText = await this.page.evaluate(() => document.body.innerText);
+
+      // Look for various ranking patterns
+      let rank = null;
+      let points = null;
+
+      // Pattern 1: "Your ranking: #X" or "Your ranking #X"
+      let rankingMatch = pageText.match(/your ranking[:\s]*#?(\d+)/i);
+      if (rankingMatch) rank = rankingMatch[1];
+
+      // Pattern 2: "#X place" or "Xst/nd/rd/th place"
+      if (!rank) {
+        rankingMatch = pageText.match(/#(\d+)\s*(?:place|rank)/i) ||
+          pageText.match(/(\d+)(?:st|nd|rd|th)\s*place/i);
+        if (rankingMatch) rank = rankingMatch[1];
+      }
+
+      // Pattern 3: "Rank: X" or "Place: X"  
+      if (!rank) {
+        rankingMatch = pageText.match(/(?:rank|place)[:\s]*#?(\d+)/i);
+        if (rankingMatch) rank = rankingMatch[1];
+      }
+
+      // Get points
+      const pointsMatch = pageText.match(/(\d+)\s*point/i);
+      if (pointsMatch) points = pointsMatch[1];
+
+      // 19. Show the ranking
+      if (rank) {
+        this.logger.info(`RANKING: #${rank}${points ? ` | POINTS: ${points}` : ''}`);
+      } else if (points) {
+        this.logger.info(`RANKING: ? | POINTS: ${points}`);
+      } else {
+        this.logger.info(`RANKING: (waiting for next question...)`);
+      }
+
+    } catch (e) {
+      this.logger.info(`RANKING: (page loading...)`);
+    }
+
+    // Wait before next question
+    await sleep(1000);
+  }
+
+  /**
+   * Main game loop - Simple flow: QUESTION -> RANKING -> QUESTION -> GAME_ENDED
    */
   async playGame() {
     this.isRunning = true;
-    this.logger.info('Starting game loop');
+    this.logger.info('GAME STARTED');
 
     // Start state polling
-    const stopPolling = this.stateManager.startPolling(500);
+    const stopPolling = this.stateManager.startPolling(300);
+    let errorCount = 0;
+    const maxErrors = 10;
 
     try {
       while (this.isRunning) {
-        const state = this.stateManager.currentState;
+        const state = await this.stateManager.detectState();
 
         switch (state) {
           case GameStates.QUESTION:
+            // QUESTION: Answer buttons visible -> Answer it!
+            errorCount = 0;
             await this.handleQuestion();
-            // Wait for next state
-            await this.stateManager.waitForStateChange(30000);
+            await sleep(500);
+            break;
+
+          case GameStates.RANKING:
+            // Ranking screen - just wait for next question
+            errorCount = 0;
+            await sleep(500);
             break;
 
           case GameStates.ANSWER_REVEAL:
+            // ANSWER_REVEAL: Brief transition, just wait
+            errorCount = 0;
+            await sleep(500);
+            break;
+
           case GameStates.BETWEEN_QUESTIONS:
-            // Wait for next question or game end
-            await this.stateManager.waitForState(
-              [GameStates.QUESTION, GameStates.GAME_ENDED],
-              60000
-            );
+            // Between questions - wait for next
+            errorCount = 0;
+            await sleep(500);
             break;
 
           case GameStates.GAME_ENDED:
-            this.logger.info('Game ended');
+            this.logger.info('🏁 Game ended!');
             this.gameResults.finalScore = await this.pageActions.getCurrentScore();
+            this.logger.info(`Final Score: ${this.gameResults.correctAnswers}/${this.gameResults.questionsAnswered} correct`);
             this.isRunning = false;
             break;
 
+          case GameStates.REGISTRATION:
+            // Handle "Welcome back" or registration
+            errorCount = 0;
+            this.logger.info('Registration/Welcome screen detected');
+            await this.pageActions.clickContinuePlaying();
+            await sleep(1000);
+            break;
+
           case GameStates.ERROR:
-            this.logger.error('Game error detected');
-            this.isRunning = false;
+            errorCount++;
+            this.logger.warn(`Error state (${errorCount}/${maxErrors})`);
+            if (errorCount >= maxErrors) {
+              this.logger.error('Too many errors, stopping');
+              this.isRunning = false;
+            } else {
+              await sleep(1000);
+            }
             break;
 
           case GameStates.WAITING:
           case GameStates.COUNTDOWN:
-            // Still waiting for game
-            await sleep(1000);
+            errorCount = 0;
+            await sleep(500);
             break;
 
+          case GameStates.UNKNOWN:
           default:
             await sleep(500);
         }

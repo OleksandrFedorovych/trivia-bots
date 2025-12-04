@@ -17,6 +17,7 @@ export const GameStates = {
   COUNTDOWN: 'countdown',
   QUESTION: 'question',
   ANSWER_REVEAL: 'answer_reveal',
+  RANKING: 'ranking',  // Leaderboard/standings screen between questions
   BETWEEN_QUESTIONS: 'between_questions',
   GAME_ENDED: 'game_ended',
   ERROR: 'error',
@@ -38,76 +39,129 @@ export class GameStateManager {
   }
 
   /**
+   * Try multiple selectors and return the first match
+   * @param {string|array} selectorOrArray - Selector string or array of selectors
+   * @returns {Promise<ElementHandle|null>} First matching element or null
+   */
+  async findBySelectors(selectorOrArray) {
+    const selectorList = Array.isArray(selectorOrArray) ? selectorOrArray : [selectorOrArray];
+    
+    for (const selector of selectorList) {
+      try {
+        const element = await this.page.$(selector);
+        if (element) return element;
+      } catch (e) {
+        // Ignore invalid selectors
+      }
+    }
+    return null;
+  }
+
+  /**
    * Detect the current game state
+   * Simple flow: QUESTION -> RESULT/RANKING -> QUESTION -> ... -> GAME_ENDED
    * @returns {Promise<string>} Current game state
    */
   async detectState() {
     try {
-      const pageContent = await this.page.content();
-      const pageText = await this.page.evaluate(() => document.body.innerText.toLowerCase());
+      // Get page text
+      let pageText = '';
+      try {
+        pageText = await this.page.evaluate(() => document.body.innerText.toLowerCase());
+      } catch (evalError) {
+        this.logger.debug('Page not ready, keeping current state');
+        return this.currentState;
+      }
+
+      // STEP 1: Check for answer buttons FIRST (most important for detecting QUESTION state)
+      let answerButtonCount = 0;
+      try {
+        const letterButtons = await this.page.$$('button:has-text("A."), button:has-text("B."), button:has-text("C."), button:has-text("D.")');
+        const gripButtons = await this.page.$$('button[name*="Grip Icon"]');
+        answerButtonCount = letterButtons.length + gripButtons.length;
+      } catch (e) {
+        // Ignore selector errors
+      }
+
+      // STEP 2: Check for "Your ranking:" text (indicates result/ranking screen)
+      const hasYourRanking = pageText.includes('your ranking');
+      
+      // STEP 3: Get timer if present
+      const timerMatch = pageText.match(/(\d+):(\d{2})/);
+      let timerSeconds = -1;
+      if (timerMatch) {
+        timerSeconds = parseInt(timerMatch[1]) * 60 + parseInt(timerMatch[2]);
+      }
+
+      this.logger.debug(`State: buttons=${answerButtonCount}, yourRanking=${hasYourRanking}, timer=${timerSeconds}s`);
+
+      // === STATE DETECTION ===
+
+      // Check for returning player screen
+      if (pageText.includes('welcome back') || pageText.includes('continue playing')) {
+        return this.setState(GameStates.REGISTRATION);
+      }
 
       // Check for registration form
-      const hasRegistrationForm = await this.page.$(selectors.registration.nicknameInput);
+      const hasRegistrationForm = await this.page.$('input[placeholder*="Nickname"], input[name*="nickname"]');
       if (hasRegistrationForm) {
         return this.setState(GameStates.REGISTRATION);
       }
 
-      // Check for game ended
-      if (pageText.includes('game over') || 
-          pageText.includes('final scores') || 
-          pageText.includes('final results') ||
-          pageText.includes('thanks for playing')) {
+      // Check for GAME ENDED
+      if (pageText.includes('you finished') || 
+          pageText.includes('game over') || 
+          pageText.includes('thank you for playing') ||
+          pageText.includes('final results')) {
         return this.setState(GameStates.GAME_ENDED);
       }
 
-      // Check for waiting room
-      if (pageText.includes('will be activated shortly') || 
-          pageText.includes('waiting for host') ||
-          pageText.includes('game will start')) {
-        return this.setState(GameStates.WAITING);
-      }
-
-      // Check for countdown
-      const countdownMatch = pageText.match(/(\d+:\d{2})|starting in/);
-      const hasCountdown = await this.page.$(selectors.gameState.countdown);
-      if (hasCountdown || countdownMatch) {
-        // Distinguish between pre-game countdown and question timer
-        if (pageText.includes('starting') || pageText.includes('get ready')) {
-          return this.setState(GameStates.COUNTDOWN);
-        }
-      }
-
-      // Check for active question
-      const hasQuestion = await this.page.$(selectors.question.container);
-      const hasOptions = await this.page.$$(selectors.question.optionButton);
-      if (hasQuestion && hasOptions.length > 0) {
-        // Check if we can still answer (not locked/revealed)
-        const isLocked = await this.page.$(selectors.feedback.locked);
-        const hasCorrectFeedback = await this.page.$(selectors.feedback.correct);
-        const hasIncorrectFeedback = await this.page.$(selectors.feedback.incorrect);
-        
-        if (isLocked || hasCorrectFeedback || hasIncorrectFeedback) {
-          return this.setState(GameStates.ANSWER_REVEAL);
-        }
-        
+      // QUESTION state: Has answer buttons to click AND timer > 0
+      if (answerButtonCount > 0 && timerSeconds > 0) {
         return this.setState(GameStates.QUESTION);
       }
 
-      // Check for between questions state
-      if (pageText.includes('next question') || 
-          pageText.includes('question coming')) {
+      // RANKING state: Shows "Your ranking:" text
+      if (hasYourRanking) {
+        return this.setState(GameStates.RANKING);
+      }
+
+      // ANSWER_REVEAL: Timer is 0 or shows wrong/correct feedback
+      if (timerSeconds === 0 || pageText.includes('time has run out')) {
+        return this.setState(GameStates.ANSWER_REVEAL);
+      }
+
+      // WAITING: Waiting for game to start
+      if (pageText.includes('will be activated shortly') || 
+          pageText.includes('waiting') ||
+          pageText.includes('game will start') ||
+          pageText.includes('hang tight')) {
+        return this.setState(GameStates.WAITING);
+      }
+
+      // Default: between questions or unknown
+      if (timerMatch) {
         return this.setState(GameStates.BETWEEN_QUESTIONS);
       }
 
-      // Check for error state
-      if (pageText.includes('error') || pageText.includes('something went wrong')) {
+      // Check for actual error messages on page
+      if (pageText.includes('something went wrong') || 
+          pageText.includes('unable to join') ||
+          pageText.includes('error occurred')) {
         return this.setState(GameStates.ERROR);
       }
 
-      return this.setState(GameStates.UNKNOWN);
+      // If we have a user menu (signed in) but no game elements, we're waiting
+      if (pageText.includes('sign out') || pageText.includes('my profile')) {
+        return this.setState(GameStates.WAITING);
+      }
+
+      // Default to current state to avoid flickering
+      return this.currentState || GameStates.WAITING;
     } catch (error) {
-      this.logger.error('Error detecting game state', { error: error.message });
-      return this.setState(GameStates.ERROR);
+      // Don't switch to ERROR state for navigation/context errors
+      this.logger.debug('Temporary error in state detection, keeping current state', { error: error.message });
+      return this.currentState;
     }
   }
 
@@ -165,8 +219,9 @@ export class GameStateManager {
         return currentState;
       }
 
-      // Check for terminal states
-      if (currentState === GameStates.GAME_ENDED || currentState === GameStates.ERROR) {
+      // Only GAME_ENDED is a terminal state, ERROR should keep waiting
+      // because it might just be a temporary navigation issue
+      if (currentState === GameStates.GAME_ENDED) {
         return currentState;
       }
 

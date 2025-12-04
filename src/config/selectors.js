@@ -8,59 +8,84 @@
 export const selectors = {
   // Registration Form - Updated for Crowd.live
   registration: {
-    nicknameInput: 'input[placeholder*="Nickname"]',
+    nicknameInput: 'input[placeholder*="Nickname"], input[name*="nickname"]',
     nameInput: 'input[placeholder*="Name"]:not([placeholder*="Nickname"])',
-    emailInput: 'input[placeholder*="Email"]',
+    emailInput: 'input[placeholder*="Email"], input[type="email"]',
     phoneInput: 'input[type="tel"]',
     countryCodeDropdown: '.flag-dropdown, .selected-flag, [class*="flag"]',
-    joinButton: 'button >> text=Join',  // Playwright text selector
-    joinButtonAlt: 'text=Join',         // Alternative selector
+    joinButton: 'button:has-text("Join")',
+    joinButtonAlt: 'text=Join',
   },
 
-  // Game States
+  // Game States - arrays of selectors to try (updated for Crowd.live)
   gameState: {
-    waitingRoom: 'text=/will be activated shortly/i, text=/waiting/i, text=/game will start/i',
-    countdown: 'text=/\\d{1,2}:\\d{2}/, .countdown, .timer, [class*="countdown"]',
-    questionActive: '.question-container, .question, [class*="question"]',
-    gameEnded: 'text=/game over/i, text=/final scores/i, text=/leaderboard/i',
+    waitingRoom: [
+      'text=/will be activated shortly/i',
+      'text=/waiting/i',
+      'text=/game will start/i',
+      'text=/hang tight/i'
+    ],
+    countdown: [
+      '[class*="countdown"]',
+      '[class*="timer"]',
+      'text=/starting in/i',
+      'text=/get ready/i'
+    ],
+    questionActive: [
+      'section',
+      '[role="button"]',
+      'button:has-text("Grip Icon")',
+      '[class*="question"]',
+      '[class*="trivia"]'
+    ],
+    gameEnded: [
+      'text=/game over/i',
+      'text=/final scores/i',
+      'text=/leaderboard/i',
+      'text=/thanks for playing/i',
+      'text=/final results/i'
+    ],
   },
 
-  // Question & Answers
+  // Question & Answers - Updated for Crowd.live structure
   question: {
-    container: '.question-container, .question, [class*="question-text"]',
-    text: '.question-text, .question h1, .question h2, [class*="question"] p',
-    optionsContainer: '.answers, .options, [class*="answer"], [class*="option"]',
-    optionButton: '.answer-button, .option, button[class*="answer"], [class*="choice"]',
-    optionText: '.answer-text, .option-text, span, p',
+    container: 'section, [class*="question"], [class*="trivia"]',
+    text: 'h1, h2, h3, [class*="question"] p, section p',
+    optionsContainer: 'section, [class*="answer"], [class*="option"]',
+    // Crowd.live uses buttons with various patterns
+    optionButton: 'button[name*="Grip Icon"], button:has-text("A."), button:has-text("B."), button:has-text("C."), button:has-text("D."), [role="button"]',
+    optionText: 'span, p, [class*="text"]',
   },
 
-  // Timer & Progress
+  // Timer & Progress - Updated for Crowd.live
   timer: {
-    countdown: '.timer, .countdown, [class*="timer"], [class*="countdown"]',
-    progressBar: '.progress, .progress-bar, [class*="progress"]',
-    timeText: '.time-remaining, .timer-text, [class*="time"]',
+    // Crowd.live shows timer as text like "0:12" or "0:00"
+    countdown: '[class*="timer"], [class*="countdown"], text=/\\d+:\\d{2}/',
+    progressBar: 'progressbar, [role="progressbar"], [class*="progress"]',
+    timeText: '[class*="time"], text=/\\d+:\\d{2}/',
   },
 
   // Answer Feedback
   feedback: {
-    correct: '.correct, [class*="correct"], [class*="right"], .green',
-    incorrect: '.incorrect, .wrong, [class*="incorrect"], [class*="wrong"], .red',
-    selected: '.selected, [class*="selected"], .active',
-    locked: '.locked, [class*="locked"], .disabled',
+    correct: '[class*="correct"], [class*="right"], [class*="green"], text=/correct/i',
+    incorrect: '[class*="incorrect"], [class*="wrong"], [class*="red"], text=/wrong/i',
+    selected: '[class*="selected"], [aria-selected="true"]',
+    locked: '[class*="locked"], [disabled], text=/time has run out/i',
   },
 
-  // Score & Leaderboard
+  // Score & Leaderboard - Updated for Crowd.live
   score: {
-    currentScore: '.score, .points, [class*="score"], [class*="points"]',
-    rank: '.rank, .position, [class*="rank"]',
-    leaderboard: '.leaderboard, [class*="leaderboard"], .standings',
+    // Crowd.live shows points as "48 Points" or "0 Points"
+    currentScore: 'text=/\\d+ Point/i, [class*="score"], [class*="points"]',
+    rank: '[class*="rank"], [class*="position"]',
+    leaderboard: '[class*="leaderboard"], [class*="standings"]',
   },
 
   // General UI
   ui: {
-    loadingSpinner: '.loading, .spinner, [class*="loading"]',
-    errorMessage: '.error, [class*="error"], .alert-danger',
-    modal: '.modal, [class*="modal"], .popup',
+    loadingSpinner: '[class*="loading"], [class*="spinner"]',
+    errorMessage: '[class*="error"], text=/something went wrong/i',
+    modal: '[role="dialog"], [class*="modal"]',
   },
 };
 
