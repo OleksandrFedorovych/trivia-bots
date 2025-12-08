@@ -6,13 +6,14 @@
  * Usage: node src/runMultipleBots.js [botCount] [gameUrl]
  */
 
-import { GameSession, createTestSession } from './orchestrator/gameSession.js';
-import { createTestPlayers } from './players/googleSheetsLoader.js';
+import { GameSession } from './orchestrator/gameSession.js';
+import { excelLoader } from './players/excelLoader.js';
 import logger from './utils/logger.js';
+import config from './config/default.js';
 
 // Configuration
 const DEFAULT_BOT_COUNT = 5;
-const DEFAULT_GAME_URL = 'https://www.crowd.live/FNJCN';
+const DEFAULT_GAME_URL = config.game.url || 'https://www.crowd.live/FNJCN';
 
 async function main() {
   // Parse command line arguments
@@ -25,13 +26,21 @@ async function main() {
   console.log('========================================');
   console.log(`Game URL: ${gameUrl}`);
   console.log(`Bot Count: ${botCount}`);
-  console.log(`Max Concurrent: 5`);
+  console.log(`Max Concurrent: ${config.browser.maxConcurrent}`);
   console.log('========================================');
   console.log('');
 
-  // Create test players
-  const players = createTestPlayers(botCount);
+  // Load players from Excel file
+  console.log('Loading players from Excel file...');
+  const players = excelLoader.loadPlayers({ limit: botCount });
 
+  if (players.length === 0) {
+    console.error('No players found in src/data/players.xlsx');
+    process.exit(1);
+  }
+
+  console.log(`Loaded ${players.length} players`);
+  console.log('');
   console.log('Players to join:');
   players.forEach((p, i) => {
     console.log(`  ${i + 1}. ${p.nickname} (Accuracy: ${(p.accuracy * 100).toFixed(0)}%, ${p.personality})`);
@@ -42,9 +51,17 @@ async function main() {
   const session = new GameSession({
     gameUrl,
     players,
-    maxConcurrent: 5,
-    headless: false, // Set to true for production
+    maxConcurrent: config.browser.maxConcurrent,
+    headless: config.browser.headless,
     staggerDelay: { min: 2000, max: 5000 },
+  });
+
+  // Handle graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\nReceived SIGINT, stopping...');
+    await session.stop();
+    await session.cleanup();
+    process.exit(0);
   });
 
   try {
@@ -60,7 +77,7 @@ async function main() {
     console.log('        SESSION RESULTS');
     console.log('========================================');
     console.log(`Session ID: ${results.sessionId}`);
-    console.log(`Duration: ${results.duration.toFixed(1)} seconds`);
+    console.log(`Duration: ${results.duration?.toFixed(1) || 'N/A'} seconds`);
     console.log(`Total Players: ${results.totalPlayers}`);
     console.log(`Completed: ${results.completed}`);
     console.log(`Failed: ${results.failed}`);
@@ -68,7 +85,7 @@ async function main() {
 
     // Print individual results
     console.log('Player Results:');
-    for (const [playerId, playerResult] of Object.entries(results.players)) {
+    for (const [playerId, playerResult] of Object.entries(results.players || {})) {
       if (playerResult.error) {
         console.log(`  ❌ ${playerId}: ERROR - ${playerResult.error}`);
       } else {
@@ -86,4 +103,3 @@ async function main() {
 
 // Run
 main().catch(console.error);
-

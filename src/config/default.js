@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const config = {
   // Game settings
@@ -16,18 +21,9 @@ export const config = {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   },
 
-  // Google Sheets settings
-  googleSheets: {
-    spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-    ranges: {
-      players: 'Players!A2:Z',
-      cities: 'Cities!A2:Z',
-      clubs: 'Clubs!A2:Z',
-    },
+  // Excel data file settings
+  data: {
+    playersFile: process.env.PLAYERS_FILE || path.join(__dirname, '..', 'data', 'players.xlsx'),
   },
 
   // Timing settings (for human-like behavior)
@@ -46,8 +42,3 @@ export const config = {
 };
 
 export default config;
-
-
-
-
-

@@ -6,10 +6,11 @@ Scalable browser automation system for trivia games on Crowd.live. This system s
 
 - 🤖 **Browser Automation**: Playwright-based automation for joining and playing trivia games
 - 🎭 **Human-Like Behavior**: Each bot has unique timing patterns, accuracy rates, and personality traits
-- 📊 **Google Sheets Integration**: Load player profiles from Google Sheets
+- 📊 **Excel Data Import**: Load player profiles from TYSN Universe Excel file
 - 🔄 **Concurrent Players**: Support for 10-50+ simultaneous players (scalable to 1000+)
 - 📈 **Behavior Engine**: Simulates hot/cold streaks, fatigue, and decision-making patterns
 - 🎯 **Configurable Accuracy**: Set accuracy rates per player (e.g., 63%-82%)
+- 📅 **Game Scheduler**: Automatic weekly game scheduling (NFL & Hockey)
 
 ## Project Structure
 
@@ -23,19 +24,19 @@ src/
 │   ├── gameState.js    # Game state detection
 │   └── triviaBot.js    # Complete bot implementation
 ├── players/
-│   ├── playerSchema.js       # Player profile schema
-│   ├── behaviorEngine.js     # Human-like behavior simulation
-│   └── googleSheetsLoader.js # Google Sheets integration
+│   ├── playerSchema.js     # Player profile schema
+│   ├── behaviorEngine.js   # Human-like behavior simulation
+│   └── excelLoader.js      # Excel file loader
 ├── orchestrator/
 │   ├── playerPool.js   # Manages multiple browser instances
 │   └── gameSession.js  # Coordinates game sessions
 ├── scheduler/
 │   └── gameScheduler.js # Automatic game scheduling
+├── data/
+│   └── players.xlsx    # Player profiles (TYSN Universe)
 ├── utils/
 │   ├── logger.js       # Winston logger
 │   └── timing.js       # Timing utilities
-├── data/
-│   └── samplePlayers.json  # Sample player data
 ├── bot.js              # Single bot runner
 ├── runMultipleBots.js  # Multi-bot runner
 ├── runScheduler.js     # Scheduler runner
@@ -53,9 +54,9 @@ src/
    ```bash
    npx playwright install chromium
    ```
-4. Copy `.env.example` to `.env` and configure:
-   ```bash
-   cp .env.example .env
+4. Place your player data Excel file:
+   ```
+   src/data/players.xlsx
    ```
 
 ## Configuration
@@ -68,24 +69,26 @@ Create a `.env` file with the following:
 # Crowd.live Game Configuration
 GAME_URL=https://www.crowd.live/FNJCN
 
-# Google Sheets Configuration (optional)
-GOOGLE_SHEETS_ID=your_spreadsheet_id
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account@project.iam.gserviceaccount.com
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-
 # Bot Configuration
 MAX_CONCURRENT_BOTS=10
 HEADLESS=false
 LOG_LEVEL=info
 ```
 
-### Google Sheets Setup
+### Player Data (Excel File)
 
-1. Create a Google Cloud project
-2. Enable the Google Sheets API
-3. Create a service account and download credentials
-4. Share your spreadsheet with the service account email
-5. Add credentials to `.env`
+Place your `players.xlsx` file in `src/data/`. The Excel file should have a sheet with these columns:
+
+| Column | Description |
+|--------|-------------|
+| Participant ID | Unique identifier |
+| Participant Name | Full name |
+| Email | Email address |
+| Phone | Phone number |
+| Percent Correct | Accuracy percentage (0-100) |
+| Team | Team/Club name (optional) |
+
+The bot automatically converts this to the internal player format.
 
 ### Player Profile Schema
 
@@ -101,27 +104,23 @@ Players can have the following attributes:
 | `accuracy` | number | Correct answer rate (0.0-1.0) |
 | `personality` | string | `fast`, `cautious`, `random`, `normal` |
 | `reactionTime` | object | `{ min, max, average }` in milliseconds |
-| `lateJoinChance` | number | Probability of joining late (0.0-1.0) |
-| `noShowChance` | number | Probability of not showing up (0.0-1.0) |
 
 ## Usage
 
-### Run a Test Session
-
-Run with generated test players:
+### Run a Game Session
 
 ```bash
 npm run bot                 # Single bot test
-npm run bots:5              # 5 bots test
-npm run bots:10             # 10 bots test  
-npm run bots:25             # 25 bots test
-node src/index.js test https://www.crowd.live/FNJCN 5  # Custom URL, 5 players
+npm run bots:5              # 5 bots
+npm run bots:10             # 10 bots
+npm run bots:25             # 25 bots
+node src/runMultipleBots.js 10 https://www.crowd.live/NOEPT  # Custom URL
 ```
 
-### Run with Google Sheets Players
+### View Loaded Players
 
 ```bash
-node src/index.js run https://www.crowd.live/FNJCN 20  # 20 players from sheets
+node src/index.js load-players
 ```
 
 ### Game Scheduler (Automatic Weekly Games)
@@ -145,17 +144,25 @@ pm2 logs trivia-scheduler   # View logs
 pm2 stop trivia-scheduler   # Stop scheduler
 ```
 
-### View Loaded Players
-
-```bash
-node src/index.js load-players
-```
-
 ### Command Reference
 
 ```bash
 node src/index.js help    # Show all commands
 ```
+
+## NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run bot` | Run single bot |
+| `npm run bots` | Run multi-bot (default 5) |
+| `npm run bots:5` | Run 5 bots |
+| `npm run bots:10` | Run 10 bots |
+| `npm run bots:25` | Run 25 bots |
+| `npm run scheduler` | Start game scheduler |
+| `npm run scheduler:status` | Show scheduler status |
+| `npm run scheduler:nfl` | Run NFL game now |
+| `npm run scheduler:hockey` | Run Hockey game now |
 
 ## Scaling
 
@@ -218,8 +225,3 @@ ISC
 ## Author
 
 Oleksandr Fedorovych
-
-
-
-
-

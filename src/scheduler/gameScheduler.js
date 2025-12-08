@@ -6,7 +6,8 @@
  */
 
 import { GameSession } from '../orchestrator/gameSession.js';
-import { sheetsLoader, createTestPlayers } from '../players/googleSheetsLoader.js';
+import { excelLoader } from '../players/excelLoader.js';
+import { createProfile } from '../players/playerSchema.js';
 import logger from '../utils/logger.js';
 import config from '../config/default.js';
 
@@ -50,7 +51,6 @@ export class GameScheduler {
     this.timers = new Map();
     this.activeSessions = new Map();
     this.isRunning = false;
-    this.useTestPlayers = options.useTestPlayers ?? true;
     this.headless = options.headless ?? config.browser.headless;
   }
 
@@ -172,20 +172,15 @@ export class GameScheduler {
     logger.info(`========================================`);
 
     try {
-      // Load players
-      let players;
-      if (this.useTestPlayers) {
-        players = createTestPlayers(scheduleConfig.playerCount);
-      } else {
-        players = await sheetsLoader.loadPlayers({ limit: scheduleConfig.playerCount });
-      }
+      // Load players from Excel file
+      const players = excelLoader.loadPlayers({ limit: scheduleConfig.playerCount });
 
       if (players.length === 0) {
-        logger.error('No players available for game');
+        logger.error('No players available - check src/data/players.xlsx');
         return;
       }
 
-      logger.info(`Loaded ${players.length} players`);
+      logger.info(`Loaded ${players.length} players from Excel`);
 
       // Create game session
       const session = new GameSession({

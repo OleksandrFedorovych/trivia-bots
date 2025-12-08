@@ -28,8 +28,8 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.6.1",
-    "googleapis": "^144.0.0",
     "playwright": "^1.57.0",
-    "winston": "^3.18.3"
+    "winston": "^3.18.3",
+    "xlsx": "^0.18.5"
   }
 }

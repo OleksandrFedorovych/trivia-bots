@@ -5,7 +5,6 @@
  */
 
 import PlayerPool from './playerPool.js';
-import { createTestPlayers } from '../players/googleSheetsLoader.js';
 import logger from '../utils/logger.js';
 import config from '../config/default.js';
 
@@ -171,26 +170,4 @@ export class GameSession {
   }
 }
 
-/**
- * Create a quick test session with generated players
- * @param {string} gameUrl - Game URL
- * @param {number} playerCount - Number of test players
- * @param {object} options - Session options
- * @returns {GameSession} Configured game session
- */
-export function createTestSession(gameUrl, playerCount = 5, options = {}) {
-  const players = createTestPlayers(playerCount);
-  
-  return new GameSession({
-    gameUrl,
-    players,
-    ...options,
-  });
-}
-
 export default GameSession;
-
-
-
-
-
