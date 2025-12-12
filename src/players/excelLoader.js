@@ -249,6 +249,86 @@ export class ExcelLoader {
   getGameUrl(code) {
     return `https://www.crowd.live/${code}`;
   }
+
+  /**
+   * Load players grouped by team/club
+   * @param {object} options - Loading options
+   * @returns {object} Object with team names as keys and player arrays as values
+   */
+  loadPlayersByTeam(options = {}) {
+    const players = this.loadPlayers(options);
+    const teams = {};
+
+    players.forEach(player => {
+      const teamName = player.team || 'Unassigned';
+      if (!teams[teamName]) {
+        teams[teamName] = [];
+      }
+      teams[teamName].push(player);
+    });
+
+    logger.info(`Loaded players into ${Object.keys(teams).length} teams`);
+    return teams;
+  }
+
+  /**
+   * Load players for a specific team
+   * @param {string} teamName - Team/club name
+   * @param {object} options - Loading options
+   * @returns {Array} Array of player profiles for the team
+   */
+  loadTeamPlayers(teamName, options = {}) {
+    const allPlayers = this.loadPlayers({ ...options, limit: 500 });
+    const teamPlayers = allPlayers.filter(p =>
+      p.team && p.team.toLowerCase().includes(teamName.toLowerCase())
+    );
+
+    logger.info(`Loaded ${teamPlayers.length} players for team: ${teamName}`);
+    return teamPlayers.slice(0, options.limit || 50);
+  }
+
+  /**
+   * Get list of all teams/clubs
+   * @returns {Array} Array of team names
+   */
+  getTeams() {
+    const players = this.loadPlayers({ limit: 500 });
+    const teams = new Set();
+
+    players.forEach(player => {
+      if (player.team) {
+        teams.add(player.team);
+      }
+    });
+
+    return Array.from(teams).sort();
+  }
+
+  /**
+   * Load clubs from Clubs sheet
+   * @returns {Array} Array of club objects
+   */
+  loadClubs() {
+    if (!this.workbook) {
+      const loaded = this.load();
+      if (!loaded) return [];
+    }
+
+    const clubsSheet = this.findSheet('club') || this.findSheet('team');
+    if (!clubsSheet) {
+      logger.warn('No clubs sheet found');
+      return [];
+    }
+
+    const data = this.getSheetData(clubsSheet);
+
+    return data.map(row => ({
+      clubId: row['ClubID'] || row['Club ID'] || row['ID'],
+      name: row['ClubName'] || row['Club Name'] || row['Name'],
+      city: row['City'] || row['CityName'],
+      league: row['League'],
+    })).filter(club => club.name);
+  }
 }
 
 // Export singleton

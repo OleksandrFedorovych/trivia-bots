@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Main scheduler service
+  scheduler:
+    build: .
+    container_name: trivia-scheduler
+    restart: unless-stopped
+    environment:
+      - HEADLESS=true
+      - LOG_LEVEL=info
+      - MAX_CONCURRENT_BOTS=25
+    volumes:
+      - ./src/data:/app/src/data
+      - ./logs:/app/logs
+    command: ["node", "src/runScheduler.js"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  # Single game runner (for manual games)
+  game-runner:
+    build: .
+    container_name: trivia-game-runner
+    profiles:
+      - manual
+    environment:
+      - HEADLESS=true
+      - LOG_LEVEL=info
+      - MAX_CONCURRENT_BOTS=50
+      - GAME_URL=${GAME_URL:-https://www.crowd.live/FNJCN}
+      - BOT_COUNT=${BOT_COUNT:-10}
+    volumes:
+      - ./src/data:/app/src/data
+      - ./logs:/app/logs
+    command: ["node", "src/runMultipleBots.js", "${BOT_COUNT:-10}", "${GAME_URL:-https://www.crowd.live/FNJCN}"]
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+
+  # Scaled workers for 100+ bots (use with docker-compose up --scale worker=4)
+  worker:
+    build: .
+    profiles:
+      - scaled
+    environment:
+      - HEADLESS=true
+      - LOG_LEVEL=info
+      - MAX_CONCURRENT_BOTS=25
+      - GAME_URL=${GAME_URL:-https://www.crowd.live/FNJCN}
+    volumes:
+      - ./src/data:/app/src/data:ro
+      - ./logs:/app/logs
+    command: ["node", "src/runMultipleBots.js", "25", "${GAME_URL:-https://www.crowd.live/FNJCN}"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+

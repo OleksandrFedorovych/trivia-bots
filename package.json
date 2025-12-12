@@ -11,12 +11,21 @@
     "bots:5": "node src/runMultipleBots.js 5",
     "bots:10": "node src/runMultipleBots.js 10",
     "bots:25": "node src/runMultipleBots.js 25",
+    "bots:50": "node src/runMultipleBots.js 50",
+    "bots:100": "node src/runMultipleBots.js 100",
+    "teams": "node src/runMultipleBots.js --teams",
     "scheduler": "node src/runScheduler.js",
     "scheduler:status": "node src/runScheduler.js status",
     "scheduler:nfl": "node src/runScheduler.js run nfl",
     "scheduler:hockey": "node src/runScheduler.js run hockey",
     "test": "node src/test.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "docker:build": "docker build -t trivia-bots .",
+    "docker:run": "docker-compose up -d scheduler",
+    "docker:game": "docker-compose --profile manual up game-runner",
+    "docker:scale": "docker-compose --profile scaled up --scale worker=4",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "keywords": [
     "trivia",

@@ -5,6 +5,7 @@
  */
 
 import PlayerPool from './playerPool.js';
+import { resultsWriter } from '../players/resultsWriter.js';
 import logger from '../utils/logger.js';
 import config from '../config/default.js';
 
@@ -18,6 +19,8 @@ export class GameSession {
     this.pool = null;
     this.sessionId = `session-${Date.now()}`;
     this.startTime = null;
+    this.saveResults = options.saveResults ?? true;
+    this.league = options.league || 'Unknown';
     this.endTime = null;
     this.status = 'idle'; // idle, initializing, running, completed, failed
     
@@ -112,7 +115,7 @@ export class GameSession {
       const duration = (this.endTime - this.startTime) / 1000;
       logger.info(`Session completed in ${duration.toFixed(1)} seconds`);
 
-      return {
+      const sessionResults = {
         sessionId: this.sessionId,
         gameUrl: this.gameUrl,
         startTime: this.startTime,
@@ -120,6 +123,25 @@ export class GameSession {
         duration,
         ...results,
       };
+
+      // Save results to Excel if enabled
+      if (this.saveResults) {
+        try {
+          resultsWriter.saveSessionResults(sessionResults, {
+            gameUrl: this.gameUrl,
+            league: this.league,
+          });
+          resultsWriter.saveSessionSummary(sessionResults, {
+            gameUrl: this.gameUrl,
+            league: this.league,
+          });
+          logger.info(`Results saved to: ${resultsWriter.getFilePath()}`);
+        } catch (saveError) {
+          logger.warn(`Could not save results: ${saveError.message}`);
+        }
+      }
+
+      return sessionResults;
     } catch (error) {
       this.status = 'failed';
       this.endTime = new Date();

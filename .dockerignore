@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Screenshots and temp files
+screenshots/
+*.png
+*.jpg
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment (use Docker env vars instead)
+.env.local
+.env.development
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+test/
+*.test.js
+

@@ -296,34 +296,43 @@ export class PageActions {
 
       if (pageText.includes('welcome back') || pageText.includes('continue playing')) {
         this.logger.info('Detected returning player screen');
-
-        // Try to click Continue Playing button
-        const continueSelectors = [
-          'button:has-text("Continue Playing")',
-          'button:has-text("Continue")',
-          'text=Continue Playing',
-        ];
-
-        for (const selector of continueSelectors) {
-          try {
-            const btn = await this.page.locator(selector).first();
-            if (await btn.isVisible({ timeout: 1000 })) {
-              this.logger.info(`Clicking Continue Playing using: ${selector}`);
-              await randomSleep(500, 1000);
-              await btn.click();
-              await randomSleep(1500, 2500);
-              return true;
-            }
-          } catch (e) {
-            continue;
-          }
-        }
-
-        this.logger.warn('Could not find Continue Playing button');
+        return await this.clickContinuePlaying();
       }
     } catch (e) {
       this.logger.debug('Not on returning player screen or error checking');
     }
+    return false;
+  }
+
+  /**
+   * Click the Continue Playing button (for returning players)
+   * @returns {Promise<boolean>} True if clicked successfully
+   */
+  async clickContinuePlaying() {
+    const continueSelectors = [
+      'button:has-text("Continue Playing")',
+      'button:has-text("Continue")',
+      'button:has-text("Play")',
+      'text=Continue Playing',
+      'text=Continue',
+    ];
+
+    for (const selector of continueSelectors) {
+      try {
+        const btn = await this.page.locator(selector).first();
+        if (await btn.isVisible({ timeout: 1000 })) {
+          this.logger.info(`Clicking Continue Playing using: ${selector}`);
+          await randomSleep(500, 1000);
+          await btn.click();
+          await randomSleep(1500, 2500);
+          return true;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    this.logger.warn('Could not find Continue Playing button');
     return false;
   }
 
@@ -600,20 +609,22 @@ export class PageActions {
       switch (questionType) {
         case 'multiple_choice':
           return await this.clickMultipleChoiceAnswer(index);
-        
+
         case 'number_input':
           return await this.submitNumberInput();
-        
+
         case 'text_input':
           return await this.submitTextInput();
-        
+
         case 'drag_reorder':
           return await this.clickDragReorderAnswer(index);
-        
+
         case 'true_false':
           return await this.clickTrueFalseAnswer(index);
-        
+
         case 'image':
+          return await this.clickImageAnswer(index);
+
         case 'clickable_area':
         case 'generic':
         default:
@@ -639,13 +650,13 @@ export class PageActions {
         'input[placeholder*="answer"]',
         'input:not([type="hidden"]):not([readonly])'
       ];
-      
+
       let input = null;
       for (const selector of inputSelectors) {
         input = await this.page.$(selector);
         if (input) break;
       }
-      
+
       if (!input) {
         this.logger.warn('No number input field found');
         return false;
@@ -653,16 +664,16 @@ export class PageActions {
 
       // Generate a random number (reasonable range for trivia)
       const randomNumber = Math.floor(Math.random() * 100) + 1;
-      
+
       // Clear the input and type the number
       await input.click();
       await this.page.keyboard.press('Control+A');
       await this.page.keyboard.press('Delete');
-      
+
       // Type the number
       await input.type(String(randomNumber), { delay: 50 });
       this.logger.info(`Typed number: ${randomNumber}`);
-      
+
       // Try to submit - look for submit button or press Enter
       const submitBtn = await this.page.$('button[type="submit"], button:has-text("Submit"), button:has-text("OK"), button:has-text("Confirm")');
       if (submitBtn) {
@@ -672,7 +683,7 @@ export class PageActions {
         await this.page.keyboard.press('Enter');
         this.logger.info('Pressed Enter to submit');
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error('Failed to submit number input', { error: error.message });
@@ -695,13 +706,13 @@ export class PageActions {
       // Type a generic answer
       const answers = ['yes', 'no', 'true', 'false', '1', '2', '3', '4'];
       const randomAnswer = answers[Math.floor(Math.random() * answers.length)];
-      
+
       await input.click();
       await this.page.keyboard.press('Control+A');
       await this.page.keyboard.press('Delete');
       await input.type(randomAnswer, { delay: 50 });
       this.logger.info(`Typed text: ${randomAnswer}`);
-      
+
       // Submit
       const submitBtn = await this.page.$('button[type="submit"], button:has-text("Submit"), button:has-text("OK")');
       if (submitBtn) {
@@ -709,7 +720,7 @@ export class PageActions {
       } else {
         await this.page.keyboard.press('Enter');
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error('Failed to submit text input', { error: error.message });
@@ -748,25 +759,132 @@ export class PageActions {
   }
 
   /**
-   * Click a drag-to-reorder answer (for sorting questions)
+   * Handle drag-to-reorder questions
+   * This performs actual drag-and-drop to reorder items randomly
    */
   async clickDragReorderAnswer(index) {
-    this.logger.debug(`Clicking drag reorder item ${index + 1}`);
+    this.logger.debug('Handling drag-to-reorder question');
 
     try {
-      // For drag questions, just click the buttons in order (simplified - not actual dragging)
-      const gripButtons = await this.page.$$('button[name*="Grip Icon"]');
+      // Find all draggable items
+      const draggableSelectors = [
+        'button[name*="Grip Icon"]',
+        '[draggable="true"]',
+        '[class*="draggable"]',
+        '[class*="sortable"]',
+        '[data-draggable]',
+      ];
 
-      if (index < gripButtons.length) {
-        await gripButtons[index].click({ force: true });
-        this.logger.info(`Clicked drag item ${index + 1}`);
-        return true;
+      let items = [];
+      for (const selector of draggableSelectors) {
+        items = await this.page.$$(selector);
+        if (items.length > 1) break;
       }
-    } catch (e) {
-      this.logger.debug(`Drag click failed: ${e.message}`);
-    }
 
-    return await this.clickByJavaScript(index);
+      if (items.length < 2) {
+        this.logger.warn('Not enough draggable items found');
+        return await this.clickByJavaScript(index);
+      }
+
+      this.logger.info(`Found ${items.length} draggable items`);
+
+      // Shuffle the items randomly (simulate random ordering)
+      const shuffledIndices = this.shuffleArray([...Array(items.length).keys()]);
+      this.logger.info(`Random order: ${shuffledIndices.map(i => i + 1).join(' -> ')}`);
+
+      // Perform drag-and-drop for each item to create random order
+      for (let i = 0; i < shuffledIndices.length - 1; i++) {
+        const fromIndex = shuffledIndices[i];
+        const toIndex = shuffledIndices[i + 1];
+
+        if (fromIndex !== toIndex) {
+          await this.dragAndDrop(items[fromIndex], items[toIndex]);
+          await sleep(300);
+        }
+      }
+
+      // Look for submit/confirm button after reordering
+      const submitSelectors = [
+        'button:has-text("Submit")',
+        'button:has-text("Confirm")',
+        'button:has-text("Done")',
+        'button:has-text("Lock In")',
+        'button[type="submit"]',
+      ];
+
+      for (const selector of submitSelectors) {
+        try {
+          const btn = await this.page.$(selector);
+          if (btn && await btn.isVisible()) {
+            await btn.click();
+            this.logger.info(`Clicked submit button for drag question: ${selector}`);
+            return true;
+          }
+        } catch (e) { /* continue */ }
+      }
+
+      this.logger.info('Drag reorder completed (no submit button found)');
+      return true;
+    } catch (e) {
+      this.logger.debug(`Drag reorder failed: ${e.message}`);
+      return await this.clickByJavaScript(index);
+    }
+  }
+
+  /**
+   * Perform drag and drop between two elements
+   */
+  async dragAndDrop(source, target) {
+    try {
+      const sourceBox = await source.boundingBox();
+      const targetBox = await target.boundingBox();
+
+      if (!sourceBox || !targetBox) {
+        this.logger.debug('Could not get bounding boxes for drag');
+        return false;
+      }
+
+      const sourceCenter = {
+        x: sourceBox.x + sourceBox.width / 2,
+        y: sourceBox.y + sourceBox.height / 2,
+      };
+      const targetCenter = {
+        x: targetBox.x + targetBox.width / 2,
+        y: targetBox.y + targetBox.height / 2,
+      };
+
+      // Perform drag with mouse events
+      await this.page.mouse.move(sourceCenter.x, sourceCenter.y);
+      await this.page.mouse.down();
+      await sleep(100);
+
+      // Move in steps for smoother animation
+      const steps = 5;
+      for (let i = 1; i <= steps; i++) {
+        const x = sourceCenter.x + (targetCenter.x - sourceCenter.x) * (i / steps);
+        const y = sourceCenter.y + (targetCenter.y - sourceCenter.y) * (i / steps);
+        await this.page.mouse.move(x, y);
+        await sleep(50);
+      }
+
+      await this.page.mouse.up();
+      this.logger.debug('Drag and drop completed');
+      return true;
+    } catch (error) {
+      this.logger.debug(`Drag and drop failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Shuffle array using Fisher-Yates algorithm
+   */
+  shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
   }
 
   /**
@@ -787,6 +905,74 @@ export class PageActions {
       this.logger.debug(`True/False click failed: ${e.message}`);
     }
 
+    return await this.clickByJavaScript(index);
+  }
+
+  /**
+   * Click an image-based answer
+   */
+  async clickImageAnswer(index) {
+    this.logger.debug(`Clicking image answer ${index + 1}`);
+
+    try {
+      // Find image answer containers
+      const imageSelectors = [
+        'button img',                    // Buttons containing images
+        'button [class*="image"]',       // Buttons with image classes
+        '[class*="answer"] img',         // Answer containers with images
+        '[class*="option"] img',         // Option containers with images
+        'img[class*="answer"]',          // Images with answer class
+        'img[class*="option"]',          // Images with option class
+        '[role="button"] img',           // Role buttons with images
+      ];
+
+      // Try to find clickable image elements
+      for (const selector of imageSelectors) {
+        const elements = await this.page.$$(selector);
+        const visibleElements = [];
+
+        for (const el of elements) {
+          try {
+            if (await el.isVisible()) {
+              visibleElements.push(el);
+            }
+          } catch (e) { /* skip */ }
+        }
+
+        if (visibleElements.length > 0 && index < visibleElements.length) {
+          // Click the parent button/container of the image
+          const element = visibleElements[index];
+
+          // Try to click the parent first (likely the button)
+          const parent = await element.evaluateHandle(el => el.parentElement);
+          if (parent) {
+            try {
+              await parent.asElement()?.click({ force: true });
+              this.logger.info(`Clicked image answer ${index + 1} (parent)`);
+              return true;
+            } catch (e) { /* try element directly */ }
+          }
+
+          // Click the element directly
+          await element.click({ force: true });
+          this.logger.info(`Clicked image answer ${index + 1}`);
+          return true;
+        }
+      }
+
+      // Fallback: find any button with image and click by index
+      const allImageButtons = await this.page.$$('button:has(img)');
+      if (allImageButtons.length > 0 && index < allImageButtons.length) {
+        await allImageButtons[index].click({ force: true });
+        this.logger.info(`Clicked image button ${index + 1} (fallback)`);
+        return true;
+      }
+
+    } catch (e) {
+      this.logger.debug(`Image click failed: ${e.message}`);
+    }
+
+    // Final fallback to generic JavaScript click
     return await this.clickByJavaScript(index);
   }
 
