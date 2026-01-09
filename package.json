@@ -25,7 +25,11 @@
     "docker:game": "docker-compose --profile manual up game-runner",
     "docker:scale": "docker-compose --profile scaled up --scale worker=4",
     "docker:stop": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "admin:server": "node admin/backend/server.js",
+    "admin:dev": "node --watch admin/backend/server.js",
+    "admin:frontend": "cd admin/frontend && npm run dev",
+    "admin:build": "cd admin/frontend && npm run build"
   },
   "keywords": [
     "trivia",
@@ -36,7 +40,11 @@
   "author": "Oleksandr Fedorovych",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "openai": "^6.15.0",
+    "pg": "^8.16.3",
     "playwright": "^1.57.0",
     "winston": "^3.18.3",
     "xlsx": "^0.18.5"

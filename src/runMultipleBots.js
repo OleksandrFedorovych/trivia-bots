@@ -9,6 +9,7 @@
  *   node src/runMultipleBots.js --teams              # List all teams
  */
 
+import 'dotenv/config';
 import { GameSession } from './orchestrator/gameSession.js';
 import { excelLoader } from './players/excelLoader.js';
 import logger from './utils/logger.js';

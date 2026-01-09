@@ -9,6 +9,32 @@ import { resultsWriter } from '../players/resultsWriter.js';
 import logger from '../utils/logger.js';
 import config from '../config/default.js';
 
+// Optional database integration (lazy loaded)
+let sessionServicePromise = null;
+async function getSessionService() {
+  if (sessionServicePromise) {
+    return sessionServicePromise;
+  }
+
+  sessionServicePromise = (async () => {
+    // Only import if database is configured
+    if (!process.env.DB_NAME && !process.env.DB_HOST) {
+      return null;
+    }
+
+    try {
+      const { saveSessionToDatabase, updateSessionStatus } = await import('../../admin/backend/services/sessionService.js');
+      logger.info('Database integration enabled');
+      return { saveSessionToDatabase, updateSessionStatus };
+    } catch (error) {
+      logger.debug('Database integration not available (this is OK if database is not configured)');
+      return null;
+    }
+  })();
+
+  return sessionServicePromise;
+}
+
 /**
  * Game Session class
  */
@@ -23,7 +49,7 @@ export class GameSession {
     this.league = options.league || 'Unknown';
     this.endTime = null;
     this.status = 'idle'; // idle, initializing, running, completed, failed
-    
+
     this.options = {
       maxConcurrent: options.maxConcurrent || config.browser.maxConcurrent,
       headless: options.headless ?? config.browser.headless,
@@ -103,6 +129,20 @@ export class GameSession {
     logger.info(`Game URL: ${this.gameUrl}`);
     logger.info(`Players: ${this.players.length}`);
 
+    // Update database status (if available)
+    const sessionService = await getSessionService();
+    if (sessionService?.updateSessionStatus) {
+      try {
+        await sessionService.updateSessionStatus(this.sessionId, 'running', {
+          start_time: this.startTime,
+          game_url: this.gameUrl,
+          total_players: this.players.length,
+        });
+      } catch (error) {
+        logger.debug(`Failed to update session status in database: ${error.message}`);
+      }
+    }
+
     try {
       const results = await this.pool.startAll(this.gameUrl, {
         staggerDelay: this.options.staggerDelay,
@@ -135,9 +175,22 @@ export class GameSession {
             gameUrl: this.gameUrl,
             league: this.league,
           });
-          logger.info(`Results saved to: ${resultsWriter.getFilePath()}`);
+          logger.info(`Results saved to Excel: ${resultsWriter.getFilePath()}`);
         } catch (saveError) {
-          logger.warn(`Could not save results: ${saveError.message}`);
+          logger.warn(`Could not save results to Excel: ${saveError.message}`);
+        }
+      }
+
+      // Save results to database if enabled
+      const sessionService = await getSessionService();
+      if (sessionService?.saveSessionToDatabase) {
+        try {
+          await sessionService.saveSessionToDatabase(sessionResults, {
+            league: this.league,
+          });
+          logger.info(`Results saved to database`);
+        } catch (dbError) {
+          logger.warn(`Could not save results to database: ${dbError.message}`);
         }
       }
 
@@ -146,6 +199,19 @@ export class GameSession {
       this.status = 'failed';
       this.endTime = new Date();
       logger.error(`Session failed: ${error.message}`);
+
+      // Update database status on failure
+      const sessionService = await getSessionService();
+      if (sessionService?.updateSessionStatus) {
+        try {
+          await sessionService.updateSessionStatus(this.sessionId, 'failed', {
+            end_time: this.endTime,
+          });
+        } catch (dbError) {
+          logger.debug(`Failed to update session status in database: ${dbError.message}`);
+        }
+      }
+
       throw error;
     }
   }
@@ -155,7 +221,7 @@ export class GameSession {
    */
   async stop() {
     logger.info(`Stopping session ${this.sessionId}`);
-    
+
     if (this.pool) {
       await this.pool.stopAll();
     }
