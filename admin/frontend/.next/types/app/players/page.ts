@@ -1,4 +1,4 @@
-// File: D:\Olex\trivia-bots\admin\frontend\app\players\page.tsx
+// File: D:\test\trivia-bots\admin\frontend\app\players\page.tsx
 import * as entry from '../../../../app/players/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

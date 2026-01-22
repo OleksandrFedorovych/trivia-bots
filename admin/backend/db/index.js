@@ -24,13 +24,16 @@ const dbConfig = {
   port: parseInt(process.env.DB_PORT) || 5432,
 };
 
+console.log('dfdf:', dbConfig);
+
 // Create pool with SSL for remote connections
 const pool = new Pool({
   ...dbConfig,
   max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-  ssl: process.env.DB_HOST && !process.env.DB_HOST.includes('localhost') ? { rejectUnauthorized: false } : false,
+  // idleTimeoutMillis: 30000,
+  // connectionTimeoutMillis: 2000,
+ // ssl: true,
+ ssl: true,
 });
 
 /**
@@ -39,6 +42,7 @@ const pool = new Pool({
  */
 export async function ensureDatabaseExists() {
   const targetDatabase = dbConfig.database;
+  console.log('calling here?');
 
   // Skip if connecting to default postgres database
   if (targetDatabase === 'postgres') {
