@@ -1,8 +1,8 @@
-// File: D:\test\trivia-bots\admin\frontend\app\page.tsx
-import * as entry from '../../../app/page.js'
+// File: D:\test\trivia-bots\admin\frontend\app\sessions\page.tsx
+import * as entry from '../../../../app/sessions/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../app/page.js')
+type TEntry = typeof import('../../../../app/sessions/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{
