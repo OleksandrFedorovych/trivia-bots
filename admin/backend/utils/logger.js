@@ -26,25 +26,25 @@ const customFormat = printf(({ level, message, timestamp, ...meta }) => {
   return `${timestamp} ${level}: ${message}${metaStr}`;
 });
 
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    customFormat
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: combine(colorize(), customFormat),
-    }),
-    new winston.transports.File({
-      filename: join(logsDir, 'error.log'),
-      level: 'error'
-    }),
-    new winston.transports.File({
-      filename: join(logsDir, 'combined.log')
-    }),
-  ],
-});
+// export const logger = winston.createLogger({
+//   level: process.env.LOG_LEVEL || 'info',
+//   format: combine(
+//     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+//     customFormat
+//   ),
+//   transports: [
+//     new winston.transports.Console({
+//       format: combine(colorize(), customFormat),
+//     }),
+//     new winston.transports.File({
+//       filename: join(logsDir, 'error.log'),
+//       level: 'error'
+//     }),
+//     new winston.transports.File({
+//       filename: join(logsDir, 'combined.log')
+//     }),
+//   ],
+// });
 
 export default logger;
 
