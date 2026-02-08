@@ -98,6 +98,9 @@ export class GameSession {
     this.pool = new PlayerPool({
       maxConcurrent: this.options.maxConcurrent,
       headless: this.options.headless,
+      totalPlayers: this.players.length,
+      sessionId: this.sessionId,
+      gameUrl: this.gameUrl,
     });
 
     // Add players to pool
@@ -163,6 +166,13 @@ export class GameSession {
         duration,
         ...results,
       };
+
+      for (const [playerId, result] of Object.entries(sessionResults.players || {})) {
+        if (result && !result.nickname) {
+          const player = this.players.find((p) => p.id === playerId);
+          if (player) result.nickname = player.nickname;
+        }
+      }
 
       // Save results to Excel if enabled
       if (this.saveResults) {

@@ -29,7 +29,8 @@
     "admin:server": "node admin/backend/server.js",
     "admin:dev": "node --watch admin/backend/server.js",
     "admin:frontend": "cd admin/frontend && npm run dev",
-    "admin:build": "cd admin/frontend && npm run build"
+    "admin:build": "cd admin/frontend && npm run build",
+    "admin:test-results": "node admin/backend/test-results-api.js"
   },
   "keywords": [
     "trivia",

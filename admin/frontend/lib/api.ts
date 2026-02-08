@@ -1,9 +1,14 @@
 /**
  * API Client
  * Helper functions for API calls
+ * - NEXT_PUBLIC_API_URL: used by Next.js frontend (browser)
+ * - ADMIN_API_URL: used by Node.js (runMultipleBots, etc.)
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE =
+  process.env.ADMIN_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://127.0.0.1:3001/api';
 
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE}${endpoint}`;
@@ -16,11 +21,18 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
+    const text = await response.text();
+    let error: { error?: string } = {};
+    try {
+      error = text ? JSON.parse(text) : { error: response.statusText };
+    } catch {
+      error = { error: text || response.statusText };
+    }
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }
 
 // Players API
@@ -47,17 +59,36 @@ export const playersAPI = {
   getStats: () => fetchAPI('/players/stats/summary'),
 };
 
+// Player Results API (player_results table)
+export const playerResultsAPI = {
+  addResult: (data: any) => fetchAPI('/player-results', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+};
+
 // Sessions API
 export const sessionsAPI = {
-  getAll: (params?: { status?: string; league_id?: string; limit?: number; offset?: number }) => {
+  getAll: (params?: { status?: string; league_id?: string; limit?: number; offset?: number; search?: string; start_from?: string; start_to?: string }) => {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
     if (params?.league_id) query.append('league_id', params.league_id);
     if (params?.limit) query.append('limit', String(params.limit));
     if (params?.offset) query.append('offset', String(params.offset));
+    if (params?.search) query.append('search', params.search);
+    if (params?.start_from) query.append('start_from', params.start_from);
+    if (params?.start_to) query.append('start_to', params.start_to);
     return fetchAPI(`/sessions?${query.toString()}`);
   },
   getById: (id: string) => fetchAPI(`/sessions/${id}`),
+  getByIdOptional: async (id: string) => {
+    try {
+      return await fetchAPI(`/sessions/${id}`);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('Session not found')) return null;
+      throw err;
+    }
+  },
   create: (data: any) => fetchAPI('/sessions', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -66,10 +97,12 @@ export const sessionsAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  addResult: (sessionId: string, data: any) => fetchAPI(`/sessions/${sessionId}/results`, {
+  addResult: (data: any) => fetchAPI(`/sessions}`, {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  /** Get player_results from player_results table */
+  getPlayerResults: (limit = 50) => fetchAPI(`/player-results?limit=${limit}`),
 };
 
 // Leagues API

@@ -11,6 +11,7 @@ import GameStateManager, { GameStates } from './gameState.js';
 import behaviorEngine from '../players/behaviorEngine.js';
 import { sleep, randomSleep, calculateJoinTiming } from '../utils/timing.js';
 import { createPlayerLogger } from '../utils/logger.js';
+// import { playerResultsAPI } from '../../admin/frontend/lib/api.ts';
 
 /**
  * Trivia Bot class
@@ -23,6 +24,8 @@ export class TriviaBot {
       headless: options.headless ?? config.browser.headless,
       maxRetries: options.maxRetries ?? 3,
       retryDelay: options.retryDelay ?? 2000,
+      totalPlayers: options.totalPlayers ?? 1,
+      sessionId: options.sessionId ?? null,
       ...options,
     };
 
@@ -262,6 +265,7 @@ export class TriviaBot {
     }
 
     this.logger.info('Successfully joined game');
+ 
     this.retryCount = 0; // Reset retry count on success
     return true;
   }
@@ -283,6 +287,7 @@ export class TriviaBot {
       // Check if we got game ended state
       if (state === GameStates.GAME_ENDED) {
         this.logger.info('Game has ended');
+        
         return false;
       }
 
@@ -299,6 +304,14 @@ export class TriviaBot {
       const currentState = await this.stateManager.detectState();
       if (currentState === GameStates.GAME_ENDED) {
         this.logger.info('Game has ended');
+        // sessionsAPI.update(this.profile.id, {
+        //   status: 'completed',
+        //   end_time: new Date(),
+        //   total_players: 1,
+        //   completed_players: 1,
+        //   failed_players: 0,
+        //   updated_at: new Date(),
+        // });
         return false;
       }
 
@@ -472,6 +485,7 @@ export class TriviaBot {
     // Start state polling
     const stopPolling = this.stateManager.startPolling(300);
     let errorCount = 0;
+    let playersCount = 0;
     const maxErrors = 10;
 
     try {
@@ -506,6 +520,17 @@ export class TriviaBot {
 
           case GameStates.GAME_ENDED:
             this.logger.info('🏁 Game ended!');
+            try {
+              await sessionsAPI.update(this.profile.id, {
+                status: 'completed'||'failed',
+                end_time: new Date(),
+                total_players: this.options.totalPlayers,
+                completed_players: 1,
+                failed_players: 0,
+              });
+            } catch (apiErr) {
+              this.logger.debug(`Could not sync to admin API: ${apiErr.message}`);
+            }
             this.gameResults.finalScore = await this.pageActions.getCurrentScore();
             this.logger.info(`Final Score: ${this.gameResults.correctAnswers}/${this.gameResults.questionsAnswered} correct`);
             this.isRunning = false;

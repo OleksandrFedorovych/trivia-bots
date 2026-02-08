@@ -17,6 +17,9 @@ export class PlayerPool {
   constructor(options = {}) {
     this.maxConcurrent = options.maxConcurrent || config.browser.maxConcurrent;
     this.headless = options.headless ?? config.browser.headless;
+    this.totalPlayers = options.totalPlayers ?? 1;
+    this.sessionId = options.sessionId ?? null;
+    this.gameUrl = options.gameUrl ?? '';
     this.bots = new Map();        // playerId -> TriviaBot
     this.activeBots = new Set();  // Set of active player IDs
     this.results = new Map();     // playerId -> game results
@@ -35,6 +38,9 @@ export class PlayerPool {
 
     const bot = new TriviaBot(profile, {
       headless: this.headless,
+      totalPlayers: this.totalPlayers,
+      sessionId: this.sessionId,
+      gameUrl: this.gameUrl,
     });
 
     this.bots.set(profile.id, bot);

@@ -1,3 +1,7 @@
 {
-  "/players/page": "app/players/page.js"
+  "/sessions/[id]/page": "app/sessions/[id]/page.js",
+  "/sessions/page": "app/sessions/page.js",
+  "/leagues/page": "app/leagues/page.js",
+  "/players/page": "app/players/page.js",
+  "/gpt/page": "app/gpt/page.js"
 }

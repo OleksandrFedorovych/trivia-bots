@@ -1,4 +1,4 @@
-// File: D:\test\trivia-bots\admin\frontend\app\layout.tsx
+// File: D:\work2\trivia-bots\admin\frontend\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
